@@ -9,7 +9,7 @@ import {
 import type { AnalysisStatus, AlertSummary } from "@aml/types";
 import { TransactionGraph } from "./TransactionGraph";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const PATTERN_COLORS: Record<string, string> = {
   SMURFING: "#f97316",
@@ -216,7 +216,7 @@ export function AnalysisDashboard({ uploadId, onReset }: Props) {
             Flagged Transactions ({data.alerts.length})
           </h3>
           {data.alerts.length > 0 && (
-            <span className="text-xs text-gray-500">Click row for AI explanation</span>
+            <span className="text-xs text-gray-500">Click row for evidence summary</span>
           )}
         </div>
 
@@ -338,7 +338,7 @@ function AlertExplanationPanel({
       {/* Panel header */}
       <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h3 className="font-semibold text-white text-sm">AI Analysis</h3>
+          <h3 className="font-semibold text-white text-sm">Evidence Summary</h3>
           <span
             className="text-xs px-2 py-0.5 rounded-full font-medium"
             style={{

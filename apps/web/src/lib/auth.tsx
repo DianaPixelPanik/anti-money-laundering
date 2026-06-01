@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const TOKEN_KEY = "aml_token";
 
 interface AuthState {

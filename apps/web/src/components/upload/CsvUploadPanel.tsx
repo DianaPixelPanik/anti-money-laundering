@@ -7,7 +7,7 @@ import { SchemaChecklist } from "./SchemaChecklist";
 import type { ParseResult } from "@/lib/parseCsv";
 import type { UploadResult } from "@/types/aml";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 const RECENT_UPLOADS_KEY = "aml_recent_uploads";
 
 interface RecentUpload {
@@ -96,6 +96,10 @@ export function CsvUploadPanel({ onUploadComplete }: Props) {
       }
 
       const data = await resp.json();
+
+      try {
+        sessionStorage.setItem(`aml_${data.uploadId}`, JSON.stringify(data));
+      } catch {}
 
       const uploadResult: UploadResult = {
         uploadId: data.uploadId,

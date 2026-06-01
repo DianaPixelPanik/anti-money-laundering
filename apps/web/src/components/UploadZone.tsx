@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import Papa from "papaparse";
 import { useAuth } from "@/lib/auth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Props {
   onUploadComplete: (uploadId: string) => void;
@@ -106,7 +106,7 @@ export function UploadZone({ onUploadComplete }: Props) {
           Upload Transaction Data
         </h2>
         <p className="text-gray-400 text-lg">
-          Drop your CSV file to detect suspicious patterns with AI
+          Drop your CSV file to run detection rules and risk scoring
         </p>
       </div>
 

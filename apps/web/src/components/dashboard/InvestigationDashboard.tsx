@@ -12,7 +12,7 @@ import { AlertsTimelineChart } from "@/components/charts/AlertsTimelineChart";
 import { RiskDistributionChart } from "@/components/charts/RiskDistributionChart";
 import { TransactionNetworkGraph } from "@/components/network/TransactionNetworkGraph";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Props {
   uploadResult: UploadResult;
@@ -117,11 +117,17 @@ export function InvestigationDashboard({ uploadResult, onNewUpload }: Props) {
 
   const poll = useCallback(async () => {
     try {
-      const resp = await fetch(`${API_URL}/api/analysis/${uploadId}`, {
-        headers: authHeaders(),
-      });
-      if (!resp.ok) return;
-      const json: ApiStatus = await resp.json();
+      let json: ApiStatus;
+      const cached = sessionStorage.getItem(`aml_${uploadId}`);
+      if (cached) {
+        json = JSON.parse(cached) as ApiStatus;
+      } else {
+        const resp = await fetch(`${API_URL}/api/analysis/${uploadId}`, {
+          headers: authHeaders(),
+        });
+        if (!resp.ok) return;
+        json = await resp.json() as ApiStatus;
+      }
 
       const alerts = json.alerts.map(mapApiAlert);
 

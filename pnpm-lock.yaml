@@ -94,6 +94,9 @@ importers:
       '@aml/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@anthropic-ai/sdk':
+        specifier: ^0.24.0
+        version: 0.24.3
       d3:
         specifier: ^7.9.0
         version: 7.9.0

@@ -222,19 +222,6 @@ export function TransactionDrawer({ alert, onClose }: Props) {
             <p className="text-slate-300 text-xs leading-relaxed">{alert.recommendedAction}</p>
           </div>
 
-          {/* Action buttons */}
-          <div className="px-5 py-4 space-y-2">
-            <p className="text-slate-500 text-xs uppercase tracking-wider mb-3">Actions</p>
-            <button className="w-full py-2 text-xs font-medium bg-red-950/40 hover:bg-red-950/60 border border-red-800 text-red-400 rounded-md transition-colors cursor-pointer">
-              Create SAR
-            </button>
-            <button className="w-full py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-md transition-colors cursor-pointer">
-              Mark as False Positive
-            </button>
-            <button className="w-full py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-md transition-colors cursor-pointer">
-              Add Note
-            </button>
-          </div>
         </div>
       </div>
     </>

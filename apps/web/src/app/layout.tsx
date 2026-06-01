@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "AML Detector",
-  description: "AI-powered suspicious pattern detector",
+  description: "Suspicious transaction pattern detector for AML compliance",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

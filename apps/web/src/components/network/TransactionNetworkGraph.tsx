@@ -5,7 +5,7 @@ import * as d3 from "d3";
 import { useAuth } from "@/lib/auth";
 import type { AccountNode, TransactionEdge } from "@/types/aml";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface GraphData {
   nodes: AccountNode[];
@@ -49,6 +49,32 @@ interface TooltipState {
   content: React.ReactNode;
 }
 
+function buildGraphFromCache(
+  transactions: Array<{ id: string; txId: string; fromAccount: string; toAccount: string; amount: number; currency: string; txDate: string }>,
+  alerts: Array<{ transactionId: string | null; patternType: string; riskScore: number }>
+): GraphData {
+  const alertByTxId = new Map(alerts.map((a) => [a.transactionId, a]));
+  const nodeMap = new Map<string, AccountNode>();
+  const ensureNode = (id: string, currency: string): AccountNode => {
+    if (!nodeMap.has(id)) nodeMap.set(id, { id, riskScore: 0, flaggedCount: 0, totalSent: 0, totalReceived: 0, currency });
+    return nodeMap.get(id)!;
+  };
+  const edges: TransactionEdge[] = transactions.map((tx) => {
+    const alert = alertByTxId.get(tx.txId);
+    const from = ensureNode(tx.fromAccount, tx.currency);
+    const to = ensureNode(tx.toAccount, tx.currency);
+    from.totalSent += tx.amount;
+    to.totalReceived += tx.amount;
+    if (alert) {
+      if (alert.riskScore > from.riskScore) from.riskScore = alert.riskScore;
+      if (alert.riskScore > to.riskScore) to.riskScore = alert.riskScore;
+      from.flaggedCount += 1;
+    }
+    return { id: tx.id, txId: tx.txId, source: tx.fromAccount, target: tx.toAccount, amount: tx.amount, currency: tx.currency, date: tx.txDate, isSuspicious: !!alert, patternType: alert?.patternType as import("@/types/aml").PatternType | undefined, riskScore: alert?.riskScore };
+  });
+  return { nodes: Array.from(nodeMap.values()), edges };
+}
+
 export function TransactionNetworkGraph({ uploadId }: Props) {
   const { authHeaders } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -64,6 +90,20 @@ export function TransactionNetworkGraph({ uploadId }: Props) {
   const [stats, setStats] = useState({ nodes: 0, edges: 0, suspicious: 0 });
 
   useEffect(() => {
+    const cached = sessionStorage.getItem(`aml_${uploadId}`);
+    if (cached) {
+      try {
+        const data = JSON.parse(cached) as {
+          alerts: Array<{ transactionId: string | null; patternType: string; riskScore: number }>;
+          transactions: Array<{ id: string; txId: string; fromAccount: string; toAccount: string; amount: number; currency: string; txDate: string }>;
+        };
+        const d = buildGraphFromCache(data.transactions, data.alerts);
+        setGraphData(d);
+        setStats({ nodes: d.nodes.length, edges: d.edges.length, suspicious: d.edges.filter((e) => e.isSuspicious).length });
+        setLoading(false);
+        return;
+      } catch {}
+    }
     fetch(`${API_URL}/api/analysis/${uploadId}/graph`, { headers: authHeaders() })
       .then((r) => {
         if (!r.ok) throw new Error(`Graph API returned ${r.status}`);
@@ -71,11 +111,7 @@ export function TransactionNetworkGraph({ uploadId }: Props) {
       })
       .then((d) => {
         setGraphData(d);
-        setStats({
-          nodes: d.nodes.length,
-          edges: d.edges.length,
-          suspicious: d.edges.filter((e) => e.isSuspicious).length,
-        });
+        setStats({ nodes: d.nodes.length, edges: d.edges.length, suspicious: d.edges.filter((e) => e.isSuspicious).length });
         setLoading(false);
       })
       .catch((e) => {

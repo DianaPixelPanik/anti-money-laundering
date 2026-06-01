@@ -1,5 +1,3 @@
-"use client";
-
 import type { Transaction, Alert, RiskSeverity, Recommendation } from "@/types/aml";
 
 const HIGH_RISK_COUNTRIES = ["KP", "IR", "SY", "CU", "VE", "MM", "SD"];

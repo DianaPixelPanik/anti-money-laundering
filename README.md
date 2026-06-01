@@ -1,23 +1,22 @@
 # AML Detector
 
-AI-powered Suspicious Pattern Detector for Anti-Money Laundering compliance.
+Suspicious Transaction Pattern Detector for Anti-Money Laundering compliance.
 
-Upload a CSV of transactions — get ML-detected anomalies explained by Claude in seconds.
+Upload a CSV of transactions — get risk-scored anomalies with evidence summaries in seconds.
+
+**[Live Demo →](https://anti-money-laundering-red.vercel.app)**
 
 ---
 
 ## Features
 
 - **CSV Upload** — drag and drop transaction files, instant preview
-- **ML Detection** — IsolationForest + velocity analysis + network graph analysis
-- **Pattern Classification** — Smurfing, Layering, Round-tripping, Unusual Velocity, Structuring, Geographic Anomaly
-- **Triage Agent** — Claude tool-use loop investigates each anomaly before scoring
-- **Ralph Agent** — autonomous investigation agent: up to 7 iterations, halts when confident
-- **AI Explanations** — structured: Brief Summary, Red Flags, Detailed Explanation, Recommendation Rationale
-- **SAR Generator** — formal Suspicious Activity Report narrative via Claude
+- **Detection Rules** — velocity analysis, structuring detection, geographic risk, unknown counterparty
+- **Pattern Classification** — Smurfing, Unusual Velocity, Large Amount, Cross-Border Risk, Unknown Counterparty
+- **Evidence Summary** — structured: Brief Summary, Red Flags, Detection Logic, Recommendation Rationale
 - **Transaction Graph** — D3.js force-directed network, flagged edges highlighted, drag/zoom
 - **Risk Scoring** — 0–100 with MONITOR / ESCALATE / FILE_SAR recommendation
-- **Real-time Dashboard** — live polling, bar/pie charts, alert table with click-to-expand
+- **Investigation Dashboard** — bar/area/distribution charts, alert table with click-to-expand drawer
 - **Multi-tenant** — PostgreSQL row-level isolation per tenant
 - **Immutable Audit Log** — append-only alert and decision records
 
@@ -25,16 +24,31 @@ Upload a CSV of transactions — get ML-detected anomalies explained by Claude i
 
 ## Architecture
 
+The demo deployment runs entirely on Vercel (Next.js API routes, no separate backend):
+
+```
+┌─────────────────────────────────────────┐
+│              Vercel (Next.js)           │
+│                                         │
+│  /app             →  Frontend UI        │
+│  /api/uploads     →  CSV ingestion      │
+│  /api/analysis/   →  Results polling    │
+│  /api/auth/token  →  Demo auth          │
+└─────────────────────────────────────────┘
+```
+
+Full self-hosted stack (for production):
+
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
 │   Next.js Web   │────▶│   Fastify API    │────▶│  Python Detector    │
 │  (upload + UI)  │     │  (BullMQ queue)  │     │  (IsolationForest)  │
 └─────────────────┘     └──────────────────┘     └─────────────────────┘
-                                │                          │
-                          ┌─────▼──────┐          ┌───────▼──────┐
-                          │ PostgreSQL │          │  Claude API  │
-                          │  (Prisma)  │          │  (agents)    │
-                          └────────────┘          └──────────────┘
+                                │
+                          ┌─────▼──────┐     ┌──────────────┐
+                          │ PostgreSQL │     │  Claude API  │
+                          │  (Prisma)  │     │  (triage)    │
+                          └────────────┘     └──────────────┘
                                 │
                            ┌────▼─────┐
                            │  Redis   │
@@ -48,7 +62,7 @@ Upload a CSV of transactions — get ML-detected anomalies explained by Claude i
 
 ```bash
 cp .env.example .env
-# Fill in ANTHROPIC_API_KEY
+# Fill in ANTHROPIC_API_KEY and JWT_SECRET
 
 pnpm install
 pnpm docker:up
@@ -71,7 +85,7 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 | `date` | yes | ISO 8601 datetime |
 | `currency` | — | Default: EUR |
 | `type` | — | Transfer type |
-| `country` | — | Country code |
+| `country` | — | Country code (ISO 3166-1 alpha-2) |
 | `description` | — | Free text |
 
 ---
@@ -80,19 +94,18 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 
 | Pattern | Description |
 |---------|-------------|
-| SMURFING | Transactions just below reporting threshold (€10k) |
-| LAYERING | Complex chain to obscure origin |
-| UNUSUAL_VELOCITY | Too many transactions from one account in 24h |
-| ROUND_TRIPPING | Money leaves and returns within 72h |
-| STRUCTURING | Large amounts split into smaller ones |
-| GEOGRAPHIC_ANOMALY | Unusual cross-border patterns |
+| SMURFING | Transactions just below the €10k reporting threshold (€8,500–€9,999) |
+| UNUSUAL_VELOCITY | More than 5 transactions from one account within a 24-hour window |
+| LARGE_AMOUNT | Single transaction ≥ €100,000 |
+| CROSS_BORDER_RISK | Transactions involving sanctioned or high-risk jurisdictions |
+| UNKNOWN_COUNTERPARTY | Accounts appearing only once in the dataset |
 
 ---
 
 ## Risk Levels
 
-| Score | Level | Action |
-|-------|-------|--------|
+| Score | Level | Recommendation |
+|-------|-------|----------------|
 | 80–100 | High | FILE_SAR |
 | 55–79 | Medium | ESCALATE |
 | 0–54 | Low | MONITOR |
@@ -103,15 +116,15 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/uploads` | Upload CSV — returns 202 async |
+| POST | `/api/uploads` | Upload CSV — returns 202 with full analysis |
 | GET | `/api/analysis/:uploadId` | Poll status + alerts |
-| GET | `/api/analysis/:uploadId/graph` | Transaction network graph |
+| GET | `/api/analysis/:uploadId/graph` | Transaction network graph data |
 | GET | `/api/alerts` | All alerts for tenant |
 | POST | `/api/sar/:alertId` | Generate SAR report |
 | POST | `/api/ralph/:alertId` | Run Ralph autonomous investigation |
 | GET | `/api/ralph/:alertId` | Get Ralph decisions for alert |
 
-All endpoints accept `x-tenant-id` header. All timestamps are ISO 8601 UTC.
+All endpoints require `Authorization: Bearer <token>`. All timestamps are ISO 8601 UTC.
 
 ---
 
@@ -122,7 +135,7 @@ All endpoints accept `x-tenant-id` header. All timestamps are ISO 8601 UTC.
 docker compose --profile test up -d
 
 cd apps/api
-pnpm test            # 13 integration tests, ~1.5s
+pnpm test            # integration tests
 pnpm test:coverage   # with lcov report
 ```
 
@@ -135,9 +148,9 @@ pnpm test:coverage   # with lcov report
 - **Database**: PostgreSQL 16, Prisma ORM (multi-tenant)
 - **Queue**: Redis 7 + BullMQ
 - **ML**: Python, FastAPI, scikit-learn, pandas, networkx
-- **AI**: Anthropic Claude claude-sonnet-4-6
+- **Language Model**: Anthropic Claude (claude-sonnet-4-6)
 - **Monorepo**: Turborepo + pnpm workspaces
-- **Infra**: Docker Compose (dev + test profiles)
+- **Deployment**: Vercel
 
 ---
 
@@ -146,11 +159,12 @@ pnpm test:coverage   # with lcov report
 ```
 aml-detector/
 ├── apps/
-│   ├── web/                  # Next.js frontend
+│   ├── web/                  # Next.js frontend + API routes
 │   │   └── src/
-│   │       ├── app/          # layout, page, globals.css
-│   │       └── components/   # UploadZone, AnalysisDashboard, TransactionGraph
-│   ├── api/                  # Fastify backend
+│   │       ├── app/          # layout, page, API routes
+│   │       ├── components/   # Dashboard, UploadPanel, NetworkGraph
+│   │       └── lib/          # auth, detectionRules, demoStore
+│   ├── api/                  # Fastify backend (self-hosted)
 │   │   ├── src/
 │   │   │   ├── agents/       # ralph.ts
 │   │   │   ├── jobs/         # queue.ts, triageAgent.ts
@@ -162,7 +176,7 @@ aml-detector/
 │   ├── db/                   # Prisma schema
 │   └── types/                # Shared TypeScript types
 ├── scripts/
-│   ├── sample.csv            # 20-row test dataset
+│   ├── sample.csv            # Test dataset
 │   └── init.sql              # PostgreSQL init
 ├── CLAUDE.md
 └── docker-compose.yml
