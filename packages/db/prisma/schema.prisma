@@ -1,0 +1,117 @@
+// packages/db/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenants ─────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  uploads   Upload[]
+  alerts    Alert[]
+}
+
+// ─── Uploads ─────────────────────────────────────────────────────────────────
+
+model Upload {
+  id         String       @id @default(cuid())
+  tenantId   String
+  tenant     Tenant       @relation(fields: [tenantId], references: [id])
+  filename   String
+  rowCount   Int
+  status     UploadStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  processedAt DateTime?
+
+  transactions Transaction[]
+  alerts        Alert[]
+
+  @@index([tenantId])
+}
+
+enum UploadStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+// ─── Transactions ─────────────────────────────────────────────────────────────
+
+model Transaction {
+  id              String   @id @default(cuid())
+  uploadId        String
+  upload          Upload   @relation(fields: [uploadId], references: [id])
+
+  txId            String   // original transaction ID from CSV
+  fromAccount     String
+  toAccount       String
+  amount          Float
+  currency        String   @default("EUR")
+  txDate          DateTime
+  txType          String?
+  country         String?
+  description     String?
+
+  // Anomaly scores set by Python detector
+  anomalyScore    Float?   // 0-1, higher = more suspicious
+  isoForestScore  Float?
+  velocityScore   Float?
+
+  createdAt       DateTime @default(now())
+
+  alerts Alert[]
+
+  @@index([uploadId])
+  @@index([fromAccount])
+  @@index([toAccount])
+  @@index([txDate])
+}
+
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+
+model Alert {
+  id            String      @id @default(cuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  uploadId      String
+  upload        Upload      @relation(fields: [uploadId], references: [id])
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  patternType   PatternType
+  riskScore     Int         // 0-100
+  explanation   String      @db.Text  // Claude's explanation
+  recommendation Recommendation
+
+  // Immutable audit log — never update, only append
+  createdAt     DateTime    @default(now())
+
+  @@index([tenantId])
+  @@index([uploadId])
+  @@index([riskScore])
+}
+
+enum PatternType {
+  SMURFING          // structuring below reporting threshold
+  LAYERING          // complex chain of transactions
+  STRUCTURING       // splitting large amounts
+  UNUSUAL_VELOCITY  // too many tx in short time
+  ROUND_TRIPPING    // money goes out and comes back
+  GEOGRAPHIC_ANOMALY
+  UNKNOWN
+}
+
+enum Recommendation {
+  MONITOR
+  ESCALATE
+  FILE_SAR  // Suspicious Activity Report
+}
