@@ -2,6 +2,8 @@
 import Fastify, { FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
 import cors from "@fastify/cors";
+import { registerAuth } from "./plugins/auth";
+import { authRoutes } from "./routes/auth";
 import { uploadRoutes } from "./routes/upload";
 import { analysisRoutes } from "./routes/analysis";
 import { alertRoutes } from "./routes/alerts";
@@ -27,6 +29,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     limits: { fileSize: 50 * 1024 * 1024 },
   });
 
+  // Auth: JWT validation + onRequest hook (must be before routes)
+  await registerAuth(app);
+
   app.get("/health", async () => ({
     status: "ok",
     service: "aml-api",
@@ -42,11 +47,15 @@ export async function buildApp(): Promise<FastifyInstance> {
     return reply.status(statusCode).send({ error: error.message });
   });
 
-  await app.register(uploadRoutes, { prefix: "/api/uploads" });
+  // Public — token issuer (dev/test only; disabled in production)
+  await app.register(authRoutes, { prefix: "/api/auth" });
+
+  // Protected — all require valid JWT
+  await app.register(uploadRoutes,   { prefix: "/api/uploads" });
   await app.register(analysisRoutes, { prefix: "/api/analysis" });
-  await app.register(alertRoutes, { prefix: "/api/alerts" });
-  await app.register(sarRoutes, { prefix: "/api/sar" });
-  await app.register(ralphRoutes, { prefix: "/api/ralph" });
+  await app.register(alertRoutes,    { prefix: "/api/alerts" });
+  await app.register(sarRoutes,      { prefix: "/api/sar" });
+  await app.register(ralphRoutes,    { prefix: "/api/ralph" });
 
   return app;
 }

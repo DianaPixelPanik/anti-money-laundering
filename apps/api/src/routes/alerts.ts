@@ -1,7 +1,7 @@
 // apps/api/src/routes/alerts.ts
 import { FastifyInstance } from "fastify";
 import { prisma } from "../db/client";
-import { parseTenant, alertsQuery, zodError } from "../lib/schemas";
+import { alertsQuery, zodError } from "../lib/schemas";
 
 export async function alertRoutes(app: FastifyInstance) {
   /**
@@ -9,9 +9,8 @@ export async function alertRoutes(app: FastifyInstance) {
    */
   app.get<{
     Querystring: { limit?: string; minRisk?: string };
-    Headers: { "x-tenant-id"?: string };
   }>("/", async (request, reply) => {
-    const tenantId = parseTenant(request.headers["x-tenant-id"]);
+    const { tenantId } = request.user;
 
     const parsed = alertsQuery.safeParse(request.query);
     if (!parsed.success) {

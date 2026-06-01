@@ -3,7 +3,7 @@ import { FastifyInstance } from "fastify";
 import { parse } from "csv-parse/sync";
 import { prisma } from "../db/client";
 import { analysisQueue } from "../jobs/queue";
-import { parseTenant, uploadIdParam, zodError } from "../lib/schemas";
+import { uploadIdParam, zodError } from "../lib/schemas";
 import type { CsvTransactionRow, UploadResponse } from "@aml/types";
 
 export async function uploadRoutes(app: FastifyInstance) {
@@ -11,10 +11,10 @@ export async function uploadRoutes(app: FastifyInstance) {
    * POST /api/uploads
    * Accept a CSV file, parse it, store transactions, enqueue analysis job
    */
-  app.post<{ Headers: { "x-tenant-id"?: string } }>(
+  app.post(
     "/",
     async (request, reply) => {
-      const tenantId = parseTenant(request.headers["x-tenant-id"]);
+      const { tenantId } = request.user;
 
       await prisma.tenant.upsert({
         where: { id: tenantId },

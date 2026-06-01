@@ -11,21 +11,19 @@ const VALID_CSV = [
   "TX003,ACC-B,ACC-D,1200.00,EUR,2024-01-16T08:00:00Z,TRANSFER,FR,Third payment",
 ].join("\n");
 
-const CSV_MISSING_COLUMNS = [
-  "id,sender,receiver,value",
-  "001,A,B,100",
-].join("\n");
-
+const CSV_MISSING_COLUMNS = ["id,sender,receiver,value", "001,A,B,100"].join("\n");
 const CSV_NO_ROWS = "tx_id,from_account,to_account,amount,currency,date";
 
 describe("POST /api/uploads", () => {
   let app: FastifyInstance;
   let baseUrl: string;
+  let getAuthHeaders: (tenantId: string) => Promise<Record<string, string>>;
   const tenantIds: string[] = [];
   let tenantId: string;
+  let authH: Record<string, string>;
 
   beforeAll(async () => {
-    ({ app, baseUrl } = await startTestApp());
+    ({ app, baseUrl, getAuthHeaders } = await startTestApp());
   });
 
   afterAll(async () => {
@@ -33,34 +31,35 @@ describe("POST /api/uploads", () => {
     for (const tid of tenantIds) await cleanTenant(tid);
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tenantId = `test-${randomUUID()}`;
     tenantIds.push(tenantId);
+    authH = await getAuthHeaders(tenantId);
+  });
+
+  it("returns 401 without a token", async () => {
+    const { body } = await makeFormData(VALID_CSV);
+    const res = await fetch(`${baseUrl}/api/uploads`, { method: "POST", body });
+    expect(res.status).toBe(401);
   });
 
   it("returns 202 with uploadId for valid CSV", async () => {
     const { body } = await makeFormData(VALID_CSV);
     const res = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
       body,
     });
-
     expect(res.status).toBe(202);
     const json = await res.json();
-    expect(json).toMatchObject({
-      uploadId: expect.any(String),
-      status: "PENDING",
-      rowCount: 3,
-    });
+    expect(json).toMatchObject({ uploadId: expect.any(String), status: "PENDING", rowCount: 3 });
   });
 
   it("returns 400 when no file is attached", async () => {
     const res = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
     });
-
     expect(res.status).toBe(400);
   });
 
@@ -68,10 +67,9 @@ describe("POST /api/uploads", () => {
     const { body } = await makeFormData(CSV_MISSING_COLUMNS, "bad.csv");
     const res = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
       body,
     });
-
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/Missing required columns/i);
@@ -82,10 +80,9 @@ describe("POST /api/uploads", () => {
     const { body } = await makeFormData(CSV_NO_ROWS, "empty.csv");
     const res = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
       body,
     });
-
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toMatch(/empty/i);
@@ -93,33 +90,16 @@ describe("POST /api/uploads", () => {
 
   it("persists transactions to the database", async () => {
     const { body } = await makeFormData(VALID_CSV);
-    const res = await fetch(`${baseUrl}/api/uploads`, {
+    const uploadRes = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
       body,
     });
-
-    const { uploadId } = await res.json();
-
-    // Verify via GET that row count is recorded
-    const statusRes = await fetch(`${baseUrl}/api/analysis/${uploadId}`, {
-      headers: { "x-tenant-id": tenantId },
-    });
-    const status = await statusRes.json();
+    const { uploadId } = await uploadRes.json();
+    const statusRes = await fetch(`${baseUrl}/api/analysis/${uploadId}`, { headers: authH });
     expect(statusRes.status).toBe(200);
+    const status = await statusRes.json();
     expect(status.totalRows).toBe(3);
     expect(status.uploadId).toBe(uploadId);
-  });
-
-  it("uses 'default' tenant when x-tenant-id header is absent", async () => {
-    const { body } = await makeFormData(VALID_CSV);
-    const res = await fetch(`${baseUrl}/api/uploads`, {
-      method: "POST",
-      body,
-    });
-
-    expect(res.status).toBe(202);
-    const json = await res.json();
-    expect(json.uploadId).toBeTruthy();
   });
 });

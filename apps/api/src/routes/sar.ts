@@ -3,7 +3,7 @@ import { FastifyInstance } from "fastify";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "../db/client";
 import { randomUUID } from "crypto";
-import { parseTenant, alertIdParam, zodError } from "../lib/schemas";
+import { alertIdParam, zodError } from "../lib/schemas";
 import type { SARReport, SARSubject, Recommendation, PatternType } from "@aml/types";
 
 let _anthropic: Anthropic | null = null;
@@ -21,9 +21,8 @@ export async function sarRoutes(app: FastifyInstance) {
    */
   app.post<{
     Params: { alertId: string };
-    Headers: { "x-tenant-id"?: string };
   }>("/:alertId", async (request, reply) => {
-    const tenantId = parseTenant(request.headers["x-tenant-id"]);
+    const { tenantId } = request.user;
 
     const paramsParsed = alertIdParam.safeParse(request.params);
     if (!paramsParsed.success) {

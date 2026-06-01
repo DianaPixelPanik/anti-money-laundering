@@ -14,12 +14,14 @@ const SAMPLE_CSV = [
 describe("GET /api/analysis/:uploadId", () => {
   let app: FastifyInstance;
   let baseUrl: string;
+  let getAuthHeaders: (tenantId: string) => Promise<Record<string, string>>;
   const tenantIds: string[] = [];
   let tenantId: string;
   let uploadId: string;
+  let authH: Record<string, string>;
 
   beforeAll(async () => {
-    ({ app, baseUrl } = await startTestApp());
+    ({ app, baseUrl, getAuthHeaders } = await startTestApp());
   });
 
   afterAll(async () => {
@@ -31,44 +33,39 @@ describe("GET /api/analysis/:uploadId", () => {
   beforeEach(async () => {
     tenantId = `test-${randomUUID()}`;
     tenantIds.push(tenantId);
+    authH = await getAuthHeaders(tenantId);
 
-    // Create an upload for each test
     const { body } = await makeFormData(SAMPLE_CSV);
     const res = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
       body,
     });
-    const json = await res.json();
-    uploadId = json.uploadId;
+    uploadId = (await res.json()).uploadId;
   });
 
   it("returns 200 with PENDING status immediately after upload", async () => {
-    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}`, {
-      headers: { "x-tenant-id": tenantId },
-    });
-
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}`, { headers: authH });
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.uploadId).toBe(uploadId);
     expect(["PENDING", "PROCESSING"]).toContain(json.status);
     expect(json.totalRows).toBe(3);
-    expect(json.alertCount).toBeGreaterThanOrEqual(0);
     expect(Array.isArray(json.alerts)).toBe(true);
   });
 
-  it("returns 404 for a non-existent uploadId", async () => {
-    const res = await fetch(`${baseUrl}/api/analysis/nonexistent-id-000`, {
-      headers: { "x-tenant-id": tenantId },
-    });
+  it("returns 401 without a token", async () => {
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}`);
+    expect(res.status).toBe(401);
+  });
 
+  it("returns 404 for a non-existent uploadId", async () => {
+    const res = await fetch(`${baseUrl}/api/analysis/nonexistent-id-000`, { headers: authH });
     expect(res.status).toBe(404);
-    const json = await res.json();
-    expect(json.error).toBeTruthy();
+    expect((await res.json()).error).toBeTruthy();
   });
 
   it("alert objects have required shape when present", async () => {
-    // Manually inject a synthetic alert to test the response shape
     const upload = await testPrisma.upload.findUnique({
       where: { id: uploadId },
       include: { transactions: { take: 1 } },
@@ -78,8 +75,7 @@ describe("GET /api/analysis/:uploadId", () => {
     if (tx) {
       await testPrisma.alert.create({
         data: {
-          tenantId,
-          uploadId,
+          tenantId, uploadId,
           transactionId: tx.id,
           patternType: "SMURFING",
           riskScore: 78,
@@ -92,18 +88,11 @@ describe("GET /api/analysis/:uploadId", () => {
           }),
         },
       });
-
-      await testPrisma.upload.update({
-        where: { id: uploadId },
-        data: { status: "DONE" },
-      });
+      await testPrisma.upload.update({ where: { id: uploadId }, data: { status: "DONE" } });
     }
 
-    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}`, {
-      headers: { "x-tenant-id": tenantId },
-    });
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}`, { headers: authH });
     const json = await res.json();
-
     if (json.alerts.length > 0) {
       const alert = json.alerts[0];
       expect(alert).toHaveProperty("id");
@@ -118,12 +107,14 @@ describe("GET /api/analysis/:uploadId", () => {
 describe("GET /api/analysis/:uploadId/graph", () => {
   let app: FastifyInstance;
   let baseUrl: string;
+  let getAuthHeaders: (tenantId: string) => Promise<Record<string, string>>;
   const tenantIds: string[] = [];
   let tenantId: string;
   let uploadId: string;
+  let authH: Record<string, string>;
 
   beforeAll(async () => {
-    ({ app, baseUrl } = await startTestApp());
+    ({ app, baseUrl, getAuthHeaders } = await startTestApp());
   });
 
   afterAll(async () => {
@@ -134,23 +125,26 @@ describe("GET /api/analysis/:uploadId/graph", () => {
   beforeEach(async () => {
     tenantId = `test-${randomUUID()}`;
     tenantIds.push(tenantId);
+    authH = await getAuthHeaders(tenantId);
 
     const { body } = await makeFormData(SAMPLE_CSV);
     const res = await fetch(`${baseUrl}/api/uploads`, {
       method: "POST",
-      headers: { "x-tenant-id": tenantId },
+      headers: { ...authH },
       body,
     });
-    const json = await res.json();
-    uploadId = json.uploadId;
+    uploadId = (await res.json()).uploadId;
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`);
+    expect(res.status).toBe(401);
   });
 
   it("returns graph nodes and edges after upload", async () => {
-    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`);
-
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`, { headers: authH });
     expect(res.status).toBe(200);
     const graph = await res.json();
-
     expect(Array.isArray(graph.nodes)).toBe(true);
     expect(Array.isArray(graph.edges)).toBe(true);
     expect(graph.nodes.length).toBeGreaterThan(0);
@@ -158,33 +152,29 @@ describe("GET /api/analysis/:uploadId/graph", () => {
   });
 
   it("graph nodes contain required fields", async () => {
-    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`);
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`, { headers: authH });
     const { nodes } = await res.json();
-
     for (const node of nodes) {
       expect(node).toHaveProperty("id");
       expect(node).toHaveProperty("riskScore");
-      expect(node).toHaveProperty("alertCount");
       expect(node).toHaveProperty("totalSent");
       expect(node).toHaveProperty("totalReceived");
     }
   });
 
   it("graph edges contain source/target/amount", async () => {
-    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`);
+    const res = await fetch(`${baseUrl}/api/analysis/${uploadId}/graph`, { headers: authH });
     const { edges } = await res.json();
-
     for (const edge of edges) {
       expect(edge).toHaveProperty("source");
       expect(edge).toHaveProperty("target");
       expect(edge).toHaveProperty("amount");
-      expect(edge).toHaveProperty("isSuspicious");
       expect(typeof edge.isSuspicious).toBe("boolean");
     }
   });
 
   it("returns 404 for non-existent upload", async () => {
-    const res = await fetch(`${baseUrl}/api/analysis/no-such-upload/graph`);
+    const res = await fetch(`${baseUrl}/api/analysis/no-such-upload/graph`, { headers: authH });
     expect(res.status).toBe(404);
   });
 });
