@@ -1,18 +1,23 @@
 // apps/api/src/routes/alerts.ts
 import { FastifyInstance } from "fastify";
 import { prisma } from "../db/client";
+import { parseTenant, alertsQuery, zodError } from "../lib/schemas";
 
 export async function alertRoutes(app: FastifyInstance) {
   /**
-   * GET /api/alerts?tenantId=xxx&limit=50&minRisk=70
+   * GET /api/alerts?limit=50&minRisk=70
    */
   app.get<{
     Querystring: { limit?: string; minRisk?: string };
     Headers: { "x-tenant-id"?: string };
   }>("/", async (request, reply) => {
-    const tenantId = request.headers["x-tenant-id"] ?? "default";
-    const limit = Math.min(Number(request.query.limit ?? 50), 200);
-    const minRisk = Number(request.query.minRisk ?? 0);
+    const tenantId = parseTenant(request.headers["x-tenant-id"]);
+
+    const parsed = alertsQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: zodError(parsed.error.issues) });
+    }
+    const { limit, minRisk } = parsed.data;
 
     const alerts = await prisma.alert.findMany({
       where: { tenantId, riskScore: { gte: minRisk } },

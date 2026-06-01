@@ -110,7 +110,9 @@ export function UploadZone({ onUploadComplete }: Props) {
           </div>
         ) : (
           <>
-            <div className="text-5xl mb-4">📊</div>
+            <svg className="w-14 h-14 text-gray-600 mb-4 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
             <p className="text-xl text-white font-medium mb-2">
               Drop CSV file here
             </p>
@@ -121,8 +123,11 @@ export function UploadZone({ onUploadComplete }: Props) {
 
       {/* Error */}
       {error && (
-        <div className="mt-4 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">
-          ⚠ {error}
+        <div className="mt-4 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm flex items-start gap-2">
+          <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          {error}
         </div>
       )}
 
@@ -130,7 +135,9 @@ export function UploadZone({ onUploadComplete }: Props) {
       {preview && !isUploading && (
         <div className="mt-6 bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
-            <span className="text-green-400 text-sm">✓</span>
+            <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
             <span className="text-gray-300 text-sm font-medium">
               CSV Preview (first 5 rows)
             </span>

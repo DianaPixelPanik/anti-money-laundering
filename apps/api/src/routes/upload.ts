@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { parse } from "csv-parse/sync";
 import { prisma } from "../db/client";
 import { analysisQueue } from "../jobs/queue";
+import { parseTenant, uploadIdParam, zodError } from "../lib/schemas";
 import type { CsvTransactionRow, UploadResponse } from "@aml/types";
 
 export async function uploadRoutes(app: FastifyInstance) {
@@ -13,16 +14,20 @@ export async function uploadRoutes(app: FastifyInstance) {
   app.post<{ Headers: { "x-tenant-id"?: string } }>(
     "/",
     async (request, reply) => {
-      const tenantId = request.headers["x-tenant-id"] ?? "default";
+      const tenantId = parseTenant(request.headers["x-tenant-id"]);
 
-      // Ensure tenant exists
       await prisma.tenant.upsert({
         where: { id: tenantId },
         create: { id: tenantId, name: tenantId },
         update: {},
       });
 
-      const data = await request.file();
+      let data: Awaited<ReturnType<typeof request.file>>;
+      try {
+        data = await request.file();
+      } catch {
+        return reply.status(400).send({ error: "No file uploaded or invalid multipart request" });
+      }
       if (!data) {
         return reply.status(400).send({ error: "No file uploaded" });
       }
@@ -30,7 +35,6 @@ export async function uploadRoutes(app: FastifyInstance) {
       const buffer = await data.toBuffer();
       const csvText = buffer.toString("utf-8");
 
-      // Parse CSV
       let rows: CsvTransactionRow[];
       try {
         rows = parse(csvText, {
@@ -39,14 +43,14 @@ export async function uploadRoutes(app: FastifyInstance) {
           trim: true,
         }) as CsvTransactionRow[];
       } catch (err) {
-        return reply.status(400).send({ error: "Invalid CSV format", details: String(err) });
+        const message = err instanceof Error ? err.message : "Parse error";
+        return reply.status(400).send({ error: `Invalid CSV format: ${message}` });
       }
 
       if (rows.length === 0) {
         return reply.status(400).send({ error: "CSV file is empty" });
       }
 
-      // Validate required columns
       const required = ["tx_id", "from_account", "to_account", "amount", "date"];
       const headers = Object.keys(rows[0]);
       const missing = required.filter((col) => !headers.includes(col));
@@ -58,7 +62,6 @@ export async function uploadRoutes(app: FastifyInstance) {
         });
       }
 
-      // Create upload record
       const upload = await prisma.upload.create({
         data: {
           tenantId,
@@ -68,7 +71,6 @@ export async function uploadRoutes(app: FastifyInstance) {
         },
       });
 
-      // Bulk insert transactions
       await prisma.transaction.createMany({
         data: rows.map((row) => ({
           uploadId: upload.id,
@@ -85,8 +87,7 @@ export async function uploadRoutes(app: FastifyInstance) {
         skipDuplicates: true,
       });
 
-      // Enqueue background analysis job
-      await analysisQueue.add(
+      await (analysisQueue.add as Function)(
         "analyze",
         { uploadId: upload.id, tenantId },
         { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
@@ -104,13 +105,17 @@ export async function uploadRoutes(app: FastifyInstance) {
 
   /**
    * GET /api/uploads/:uploadId
-   * Get upload metadata
    */
   app.get<{ Params: { uploadId: string } }>(
     "/:uploadId",
     async (request, reply) => {
+      const parsed = uploadIdParam.safeParse(request.params);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: zodError(parsed.error.issues) });
+      }
+
       const upload = await prisma.upload.findUnique({
-        where: { id: request.params.uploadId },
+        where: { id: parsed.data.uploadId },
         include: { _count: { select: { alerts: true } } },
       });
 

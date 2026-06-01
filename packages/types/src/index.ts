@@ -83,6 +83,100 @@ export interface AlertSummary {
   };
 }
 
+// ─── Ralph Loop ──────────────────────────────────────────────────────────────
+
+export interface RalphDecision {
+  id: string;
+  alertId: string;
+  tenantId: string;
+  decision: Recommendation;
+  riskScore: number;
+  reasoning: string;
+  iterations: number;
+  sarFiled: boolean;
+  createdAt: string;
+}
+
+// ─── Triage Agent ────────────────────────────────────────────────────────────
+
+export interface TriageResult {
+  summary: string;
+  red_flags: string[];
+  pattern_explanation: string;
+  recommendation_reason: string;
+  recommendation: Recommendation;
+  riskScore: number;
+}
+
+// ─── SAR Report ───────────────────────────────────────────────────────────────
+
+export interface SARSubject {
+  accountId: string;
+  totalVolume: number;
+  currency: string;
+  transactionCount: number;
+  alertCount: number;
+  connectedAccounts: string[];
+}
+
+export interface SARReport {
+  reportId: string;
+  generatedAt: string;
+  tenantId: string;
+  alert: {
+    id: string;
+    patternType: PatternType;
+    riskScore: number;
+    recommendation: Recommendation;
+    createdAt: string;
+  };
+  subject: SARSubject;
+  transactions: Array<{
+    txId: string;
+    fromAccount: string;
+    toAccount: string;
+    amount: number;
+    currency: string;
+    txDate: string;
+    country?: string;
+    description?: string;
+    isFlagged: boolean;
+  }>;
+  narrative: string;
+  redFlags: string[];
+  evidenceSummary: string;
+  filingRecommendation: Recommendation;
+}
+
+// ─── Transaction Graph ────────────────────────────────────────────────────────
+
+export interface GraphNode {
+  id: string;          // account id
+  riskScore: number;   // max risk score from alerts touching this account
+  alertCount: number;
+  totalSent: number;
+  totalReceived: number;
+  currency: string;
+}
+
+export interface GraphEdge {
+  id: string;          // transaction db id
+  txId: string;        // original CSV tx_id
+  source: string;      // fromAccount
+  target: string;      // toAccount
+  amount: number;
+  currency: string;
+  txDate: string;
+  isSuspicious: boolean;
+  patternType?: PatternType;
+  riskScore?: number;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 // ─── BullMQ Job Payloads ─────────────────────────────────────────────────────
 
 export interface AnalysisJobPayload {

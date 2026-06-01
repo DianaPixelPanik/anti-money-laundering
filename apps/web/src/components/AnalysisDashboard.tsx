@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  ScatterChart, Scatter, Cell, PieChart, Pie, Legend,
+  Cell, PieChart, Pie, Legend,
 } from "recharts";
 import type { AnalysisStatus, AlertSummary } from "@aml/types";
+import { TransactionGraph } from "./TransactionGraph";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -31,6 +32,7 @@ export function AnalysisDashboard({ uploadId, onReset }: Props) {
   const [data, setData] = useState<AnalysisStatus | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<AlertSummary | null>(null);
   const [isPolling, setIsPolling] = useState(true);
+  const [activeTab, setActiveTab] = useState<"alerts" | "graph">("alerts");
 
   // Poll for status
   useEffect(() => {
@@ -174,7 +176,36 @@ export function AnalysisDashboard({ uploadId, onReset }: Props) {
         </div>
       )}
 
-      {/* Alerts table */}
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1">
+        {(["alerts", "graph"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === tab
+                ? "bg-gray-800 text-white"
+                : "text-gray-500 hover:text-gray-300"
+            }`}
+          >
+            {tab === "alerts" ? `Flagged Transactions (${data.alerts.length})` : "Network Graph"}
+          </button>
+        ))}
+      </div>
+
+      {/* Network graph */}
+      {activeTab === "graph" && data.status === "DONE" && (
+        <TransactionGraph uploadId={uploadId} />
+      )}
+      {activeTab === "graph" && data.status !== "DONE" && (
+        <div className="flex items-center justify-center h-64 text-gray-500 text-sm bg-gray-900 border border-gray-800 rounded-xl">
+          Graph available after analysis completes
+        </div>
+      )}
+
+      {/* Alerts table + detail panel */}
+      {activeTab === "alerts" && (
+      <>
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-200">
@@ -187,7 +218,7 @@ export function AnalysisDashboard({ uploadId, onReset }: Props) {
 
         {data.alerts.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
-            {isProcessing ? "Analysis in progress..." : "No suspicious patterns detected ✓"}
+            {isProcessing ? "Analysis in progress..." : "No suspicious patterns detected"}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -260,36 +291,130 @@ export function AnalysisDashboard({ uploadId, onReset }: Props) {
 
       {/* Alert detail panel */}
       {selectedAlert && (
-        <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 space-y-3">
-          <div className="flex items-start justify-between">
-            <h3 className="font-semibold text-white">AI Explanation</h3>
-            <button
-              onClick={() => setSelectedAlert(null)}
-              className="text-gray-500 hover:text-gray-300 text-lg leading-none"
-            >
-              ×
-            </button>
+        <AlertExplanationPanel
+          alert={selectedAlert}
+          onClose={() => setSelectedAlert(null)}
+        />
+      )}
+      </>
+      )}
+    </div>
+  );
+}
+
+interface ParsedExplanation {
+  summary: string;
+  red_flags: string[];
+  pattern_explanation: string;
+  recommendation_reason: string;
+}
+
+function parseExplanation(raw: string): ParsedExplanation | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.summary && parsed.red_flags) return parsed as ParsedExplanation;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function AlertExplanationPanel({
+  alert,
+  onClose,
+}: {
+  alert: AlertSummary;
+  onClose: () => void;
+}) {
+  const parsed = parseExplanation(alert.explanation);
+  const riskColor = RISK_COLOR(alert.riskScore);
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden">
+      {/* Panel header */}
+      <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold text-white text-sm">AI Analysis</h3>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={{
+              background: `${PATTERN_COLORS[alert.patternType] ?? "#6b7280"}20`,
+              color: PATTERN_COLORS[alert.patternType] ?? "#9ca3af",
+            }}
+          >
+            {alert.patternType.replace(/_/g, " ")}
+          </span>
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded"
+            style={{ background: `${riskColor}20`, color: riskColor }}
+          >
+            Risk {alert.riskScore}/100
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <RecommendationBadge rec={alert.recommendation} />
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-300 text-lg leading-none ml-1"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      {parsed ? (
+        <div className="divide-y divide-gray-800">
+          {/* Brief Summary */}
+          <div className="px-5 py-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Brief Summary
+            </p>
+            <p className="text-sm text-white leading-relaxed">{parsed.summary}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">Pattern:</span>
-            <span
-              className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: `${PATTERN_COLORS[selectedAlert.patternType]}20`, color: PATTERN_COLORS[selectedAlert.patternType] }}
-            >
-              {selectedAlert.patternType}
-            </span>
-            <span className="text-xs text-gray-400 ml-2">Risk Score:</span>
-            <span style={{ color: RISK_COLOR(selectedAlert.riskScore) }} className="text-sm font-bold">
-              {selectedAlert.riskScore}/100
-            </span>
+
+          {/* Red Flags */}
+          <div className="px-5 py-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Red Flags
+            </p>
+            <ul className="space-y-2">
+              {parsed.red_flags.map((flag, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                  <svg
+                    className="w-4 h-4 mt-0.5 shrink-0 text-red-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  {flag}
+                </li>
+              ))}
+            </ul>
           </div>
-          <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap bg-gray-800/50 rounded-lg p-4">
-            {selectedAlert.explanation}
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Recommended action:</span>
-            <RecommendationBadge rec={selectedAlert.recommendation} />
+
+          {/* Detailed Explanation */}
+          <div className="px-5 py-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Detailed Explanation
+            </p>
+            <p className="text-sm text-gray-300 leading-relaxed">{parsed.pattern_explanation}</p>
           </div>
+
+          {/* Recommendation Rationale */}
+          <div className="px-5 py-4 bg-gray-800/30">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Recommendation Rationale
+            </p>
+            <p className="text-sm text-gray-300 leading-relaxed">{parsed.recommendation_reason}</p>
+          </div>
+        </div>
+      ) : (
+        /* Fallback for plain-text explanations (legacy data) */
+        <div className="px-5 py-4">
+          <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{alert.explanation}</p>
         </div>
       )}
     </div>

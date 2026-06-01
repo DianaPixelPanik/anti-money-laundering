@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -50,6 +48,38 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # ─── Test profile ─────────────────────────────────────────────────────────
+
+  postgres-test:
+    image: postgres:16-alpine
+    profiles: [test]
+    container_name: aml_postgres_test
+    environment:
+      POSTGRES_USER: aml
+      POSTGRES_PASSWORD: aml_secret
+      POSTGRES_DB: aml_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aml -d aml_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-test:
+    image: redis:7-alpine
+    profiles: [test]
+    container_name: aml_redis_test
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   postgres_data:

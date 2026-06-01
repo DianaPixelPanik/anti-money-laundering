@@ -1,23 +1,25 @@
-#  AML Detector
+# AML Detector
 
 AI-powered Suspicious Pattern Detector for Anti-Money Laundering compliance.
 
-Upload a CSV of transactions → get AI-explained anomaly alerts in seconds.
-
-![Tech Stack](https://img.shields.io/badge/TypeScript-monorepo-blue) ![Python](https://img.shields.io/badge/Python-FastAPI-green) ![Claude](https://img.shields.io/badge/AI-Claude%20Sonnet-orange)
+Upload a CSV of transactions — get ML-detected anomalies explained by Claude in seconds.
 
 ---
 
 ## Features
 
-- **CSV Upload** — drag & drop transaction files
-- **ML Detection** — IsolationForest + velocity analysis + graph analysis
-- **Pattern Classification** — Smurfing, Layering, Round-tripping, Unusual Velocity, Structuring
-- **AI Explanations** — Claude explains *why* each transaction is suspicious
-- **Risk Scoring** — 0–100 score with MONITOR / ESCALATE / FILE_SAR recommendation
-- **Real-time Dashboard** — live polling, bar/pie charts, filterable alert table
-- **Multi-tenant** — PostgreSQL RLS isolation per tenant
-- **Immutable Audit Log** — append-only alert records
+- **CSV Upload** — drag and drop transaction files, instant preview
+- **ML Detection** — IsolationForest + velocity analysis + network graph analysis
+- **Pattern Classification** — Smurfing, Layering, Round-tripping, Unusual Velocity, Structuring, Geographic Anomaly
+- **Triage Agent** — Claude tool-use loop investigates each anomaly before scoring
+- **Ralph Agent** — autonomous investigation agent: up to 7 iterations, halts when confident
+- **AI Explanations** — structured: Brief Summary, Red Flags, Detailed Explanation, Recommendation Rationale
+- **SAR Generator** — formal Suspicious Activity Report narrative via Claude
+- **Transaction Graph** — D3.js force-directed network, flagged edges highlighted, drag/zoom
+- **Risk Scoring** — 0–100 with MONITOR / ESCALATE / FILE_SAR recommendation
+- **Real-time Dashboard** — live polling, bar/pie charts, alert table with click-to-expand
+- **Multi-tenant** — PostgreSQL row-level isolation per tenant
+- **Immutable Audit Log** — append-only alert and decision records
 
 ---
 
@@ -31,7 +33,7 @@ Upload a CSV of transactions → get AI-explained anomaly alerts in seconds.
                                 │                          │
                           ┌─────▼──────┐          ┌───────▼──────┐
                           │ PostgreSQL │          │  Claude API  │
-                          │  (Prisma)  │          │ (explanations)│
+                          │  (Prisma)  │          │  (agents)    │
                           └────────────┘          └──────────────┘
                                 │
                            ┌────▼─────┐
@@ -40,25 +42,17 @@ Upload a CSV of transactions → get AI-explained anomaly alerts in seconds.
                            └──────────┘
 ```
 
+---
+
 ## Quick Start
 
 ```bash
-# 1. Clone and setup
-git clone https://github.com/YOUR_USERNAME/aml-detector
-cd aml-detector
 cp .env.example .env
 # Fill in ANTHROPIC_API_KEY
 
-# 2. Install dependencies
 pnpm install
-
-# 3. Start infrastructure
 pnpm docker:up
-
-# 4. Apply database schema
 pnpm db:push
-
-# 5. Start all services
 pnpm dev
 ```
 
@@ -70,11 +64,11 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| `tx_id` | ✓ | Unique transaction ID |
-| `from_account` | ✓ | Sender account |
-| `to_account` | ✓ | Receiver account |
-| `amount` | ✓ | Transaction amount |
-| `date` | ✓ | ISO 8601 datetime |
+| `tx_id` | yes | Unique transaction ID |
+| `from_account` | yes | Sender account |
+| `to_account` | yes | Receiver account |
+| `amount` | yes | Transaction amount |
+| `date` | yes | ISO 8601 datetime |
 | `currency` | — | Default: EUR |
 | `type` | — | Transfer type |
 | `country` | — | Country code |
@@ -86,12 +80,12 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 
 | Pattern | Description |
 |---------|-------------|
-| **SMURFING** | Transactions just below €10,000 reporting threshold |
-| **LAYERING** | Complex chain of transactions to obscure origin |
-| **UNUSUAL_VELOCITY** | Too many transactions from one account in 24h |
-| **ROUND_TRIPPING** | Money leaves and returns within 72h |
-| **STRUCTURING** | Large amounts split into smaller ones |
-| **GEOGRAPHIC_ANOMALY** | Unusual cross-border patterns |
+| SMURFING | Transactions just below reporting threshold (€10k) |
+| LAYERING | Complex chain to obscure origin |
+| UNUSUAL_VELOCITY | Too many transactions from one account in 24h |
+| ROUND_TRIPPING | Money leaves and returns within 72h |
+| STRUCTURING | Large amounts split into smaller ones |
+| GEOGRAPHIC_ANOMALY | Unusual cross-border patterns |
 
 ---
 
@@ -99,22 +93,51 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 
 | Score | Level | Action |
 |-------|-------|--------|
-| 80–100 | 🔴 High | FILE_SAR |
-| 55–79 | 🟠 Medium | ESCALATE |
-| 0–54 | 🟡 Low | MONITOR |
+| 80–100 | High | FILE_SAR |
+| 55–79 | Medium | ESCALATE |
+| 0–54 | Low | MONITOR |
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/uploads` | Upload CSV — returns 202 async |
+| GET | `/api/analysis/:uploadId` | Poll status + alerts |
+| GET | `/api/analysis/:uploadId/graph` | Transaction network graph |
+| GET | `/api/alerts` | All alerts for tenant |
+| POST | `/api/sar/:alertId` | Generate SAR report |
+| POST | `/api/ralph/:alertId` | Run Ralph autonomous investigation |
+| GET | `/api/ralph/:alertId` | Get Ralph decisions for alert |
+
+All endpoints accept `x-tenant-id` header. All timestamps are ISO 8601 UTC.
+
+---
+
+## Testing
+
+```bash
+# Start test containers (separate DB on port 5433)
+docker compose --profile test up -d
+
+cd apps/api
+pnpm test            # 13 integration tests, ~1.5s
+pnpm test:coverage   # with lcov report
+```
 
 ---
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Recharts, Papaparse
-- **Backend**: Fastify, TypeScript, BullMQ, csv-parse
-- **Database**: PostgreSQL, Prisma ORM (multi-tenant RLS)
-- **Queue**: Redis + BullMQ
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, D3.js, Recharts, Papaparse
+- **Backend**: Fastify, TypeScript, BullMQ, Zod, csv-parse
+- **Database**: PostgreSQL 16, Prisma ORM (multi-tenant)
+- **Queue**: Redis 7 + BullMQ
 - **ML**: Python, FastAPI, scikit-learn, pandas, networkx
-- **AI**: Anthropic Claude claude-sonnet-4-20250514
+- **AI**: Anthropic Claude claude-sonnet-4-6
 - **Monorepo**: Turborepo + pnpm workspaces
-- **Infra**: Docker Compose
+- **Infra**: Docker Compose (dev + test profiles)
 
 ---
 
@@ -123,18 +146,26 @@ Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
 ```
 aml-detector/
 ├── apps/
-│   ├── web/          # Next.js frontend
-│   ├── api/          # Fastify backend + BullMQ worker
-│   └── detector/     # Python FastAPI ML service
+│   ├── web/                  # Next.js frontend
+│   │   └── src/
+│   │       ├── app/          # layout, page, globals.css
+│   │       └── components/   # UploadZone, AnalysisDashboard, TransactionGraph
+│   ├── api/                  # Fastify backend
+│   │   ├── src/
+│   │   │   ├── agents/       # ralph.ts
+│   │   │   ├── jobs/         # queue.ts, triageAgent.ts
+│   │   │   ├── lib/          # schemas.ts (Zod)
+│   │   │   └── routes/       # upload, analysis, alerts, sar, ralph
+│   │   └── tests/            # Vitest integration tests
+│   └── detector/             # Python FastAPI + IsolationForest
 ├── packages/
-│   ├── db/           # Prisma schema
-│   ├── types/        # Shared TypeScript types
-│   └── queue/        # BullMQ job definitions
+│   ├── db/                   # Prisma schema
+│   └── types/                # Shared TypeScript types
 ├── scripts/
-│   ├── sample.csv    # Test data
-│   └── init.sql      # PostgreSQL RLS setup
-├── AGENTS.md         # Agent configuration
-├── CLAUDE.md         # Claude Code instructions
+│   ├── sample.csv            # 20-row test dataset
+│   └── init.sql              # PostgreSQL init
+├── AGENTS.md
+├── CLAUDE.md
 └── docker-compose.yml
 ```
 

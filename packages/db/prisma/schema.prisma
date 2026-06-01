@@ -100,6 +100,23 @@ model Alert {
   @@index([riskScore])
 }
 
+// ─── Ralph Investigation Decisions ───────────────────────────────────────────
+
+model RalphDecision {
+  id         String         @id @default(cuid())
+  alertId    String
+  tenantId   String
+  decision   Recommendation
+  riskScore  Int
+  reasoning  String         @db.Text
+  iterations Int
+  sarFiled   Boolean        @default(false)
+  createdAt  DateTime       @default(now())
+
+  @@index([alertId])
+  @@index([tenantId])
+}
+
 enum PatternType {
   SMURFING          // structuring below reporting threshold
   LAYERING          // complex chain of transactions
