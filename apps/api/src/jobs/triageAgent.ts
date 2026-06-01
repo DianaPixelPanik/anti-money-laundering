@@ -14,7 +14,7 @@ interface PythonAnomalyResult {
   features?: Record<string, unknown>;
 }
 
-const MAX_ITERATIONS = 6;
+const MAX_ITERATIONS = 3;
 
 // Lazy init — client is created at call time so process.env is populated by then
 let _anthropic: Anthropic | null = null;
@@ -250,7 +250,7 @@ Steps: (1) check sender history, (2) check receiver history, (3) map related acc
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     const response = await getClient().messages.create({
       model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6",
-      max_tokens: 1024,
+      max_tokens: 900,
       system:
         "You are a senior AML compliance analyst. Investigate each flagged transaction thoroughly using the provided tools before issuing a risk assessment. Be precise and evidence-based.",
       tools: TOOLS,
@@ -285,17 +285,22 @@ Steps: (1) check sender history, (2) check receiver history, (3) map related acc
             result = await findRelatedAccounts(inp.account_id as string, uploadId);
             break;
 
-          case "score_risk":
+          case "score_risk": {
+            const riskScore = Number(inp.risk_score);
+            const rec = (inp.recommendation as string) || (
+              riskScore >= 80 ? "FILE_SAR" : riskScore >= 55 ? "ESCALATE" : "MONITOR"
+            );
             triageResult = {
-              summary: inp.summary as string,
-              red_flags: inp.red_flags as string[],
-              pattern_explanation: inp.pattern_explanation as string,
-              recommendation_reason: inp.recommendation_reason as string,
-              recommendation: inp.recommendation as Recommendation,
-              riskScore: Number(inp.risk_score),
+              summary:               (inp.summary as string)               || "Anomaly detected.",
+              red_flags:             (inp.red_flags as string[])            || [],
+              pattern_explanation:   (inp.pattern_explanation as string)    || "",
+              recommendation_reason: (inp.recommendation_reason as string)  || "",
+              recommendation:        rec as Recommendation,
+              riskScore:             isNaN(riskScore) ? anomaly.anomaly_score * 100 : riskScore,
             };
             result = "Assessment recorded.";
             break;
+          }
 
           default:
             result = `Unknown tool: ${tu.name}`;
