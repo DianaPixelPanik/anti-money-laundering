@@ -1,4 +1,4 @@
-# 🚨 AML Detector
+#  AML Detector
 
 AI-powered Suspicious Pattern Detector for Anti-Money Laundering compliance.
 
