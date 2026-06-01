@@ -164,7 +164,6 @@ aml-detector/
 ├── scripts/
 │   ├── sample.csv            # 20-row test dataset
 │   └── init.sql              # PostgreSQL init
-├── AGENTS.md
 ├── CLAUDE.md
 └── docker-compose.yml
 ```

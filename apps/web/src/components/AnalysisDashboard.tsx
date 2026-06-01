@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Cell, PieChart, Pie, Legend,
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function AnalysisDashboard({ uploadId, onReset }: Props) {
+  const { authHeaders } = useAuth();
   const [data, setData] = useState<AnalysisStatus | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<AlertSummary | null>(null);
   const [isPolling, setIsPolling] = useState(true);
@@ -38,7 +40,9 @@ export function AnalysisDashboard({ uploadId, onReset }: Props) {
   useEffect(() => {
     const poll = async () => {
       try {
-        const resp = await fetch(`${API_URL}/api/analysis/${uploadId}`);
+        const resp = await fetch(`${API_URL}/api/analysis/${uploadId}`, {
+          headers: authHeaders(),
+        });
         if (resp.ok) {
           const json: AnalysisStatus = await resp.json();
           setData(json);

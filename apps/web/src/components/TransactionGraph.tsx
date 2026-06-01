@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import type { GraphData, GraphNode, GraphEdge } from "@aml/types";
+import { useAuth } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function TransactionGraph({ uploadId }: Props) {
+  const { authHeaders } = useAuth();
   const svgRef = useRef<SVGSVGElement>(null);
   const [data, setData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export function TransactionGraph({ uploadId }: Props) {
   const [stats, setStats] = useState({ nodes: 0, edges: 0, suspicious: 0 });
 
   useEffect(() => {
-    fetch(`${API_URL}/api/analysis/${uploadId}/graph`)
+    fetch(`${API_URL}/api/analysis/${uploadId}/graph`, { headers: authHeaders() })
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load graph data");
         return r.json() as Promise<GraphData>;

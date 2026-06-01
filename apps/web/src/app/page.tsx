@@ -1,39 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import { UploadZone } from "@/components/UploadZone";
-import { AnalysisDashboard } from "@/components/AnalysisDashboard";
+import { CsvUploadPanel } from "@/components/upload/CsvUploadPanel";
+import { InvestigationDashboard } from "@/components/dashboard/InvestigationDashboard";
+import type { UploadResult } from "@/types/aml";
 
 export default function HomePage() {
-  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100">
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-red-500/20 border border-red-500/40 flex items-center justify-center">
-            <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
+    <div className="min-h-screen bg-[#070b12]">
+      {/* Header bar */}
+      <header className="border-b border-slate-800 bg-slate-900/60">
+        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between">
+          {/* Left: brand */}
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded border border-slate-700 bg-slate-800 flex items-center justify-center shrink-0">
+              <svg
+                className="w-4 h-4 text-red-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="text-slate-100 text-sm font-semibold leading-none">AML Detector</p>
+              <p className="text-slate-500 text-xs mt-0.5">Compliance Intelligence Platform</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold text-white">AML Detector</h1>
-            <p className="text-xs text-gray-400">Suspicious Pattern Analysis</p>
-          </div>
+
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {!uploadId ? (
-          <UploadZone onUploadComplete={setUploadId} />
+      {/* Main content */}
+      <main className="max-w-screen-xl mx-auto px-6 py-6">
+        {!uploadResult ? (
+          <CsvUploadPanel onUploadComplete={setUploadResult} />
         ) : (
-          <AnalysisDashboard
-            uploadId={uploadId}
-            onReset={() => setUploadId(null)}
+          <InvestigationDashboard
+            uploadResult={uploadResult}
+            onNewUpload={() => setUploadResult(null)}
           />
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Papa from "papaparse";
+import { useAuth } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function UploadZone({ onUploadComplete }: Props) {
+  const { authHeaders, loading: authLoading, error: authError, refresh } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,19 +21,14 @@ export function UploadZone({ onUploadComplete }: Props) {
     async (file: File) => {
       setError(null);
 
-      // Client-side CSV preview
       Papa.parse(file, {
         header: true,
         preview: 5,
         complete: (results) => {
-          setPreview({
-            headers: results.meta.fields ?? [],
-            rows: results.data as any[],
-          });
+          setPreview({ headers: results.meta.fields ?? [], rows: results.data as any[] });
         },
       });
 
-      // Upload to API
       setIsUploading(true);
       try {
         const formData = new FormData();
@@ -39,13 +36,19 @@ export function UploadZone({ onUploadComplete }: Props) {
 
         const resp = await fetch(`${API_URL}/api/uploads`, {
           method: "POST",
-          headers: { "x-tenant-id": "default" },
+          headers: { ...authHeaders() },
           body: formData,
         });
 
+        if (resp.status === 401) {
+          // Token expired or invalid — refresh and ask user to retry
+          await refresh();
+          throw new Error("Session expired. Please try again.");
+        }
+
         if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.error ?? "Upload failed");
+          const body = await resp.json().catch(() => ({}));
+          throw new Error(body.error ?? "Upload failed");
         }
 
         const data = await resp.json();
@@ -55,7 +58,7 @@ export function UploadZone({ onUploadComplete }: Props) {
         setIsUploading(false);
       }
     },
-    [onUploadComplete]
+    [authHeaders, onUploadComplete, refresh]
   );
 
   const onDrop = useCallback(
@@ -68,6 +71,32 @@ export function UploadZone({ onUploadComplete }: Props) {
     },
     [handleFile]
   );
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] gap-3 text-gray-400">
+        <div className="w-5 h-5 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+        Connecting to API...
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="p-6 bg-red-900/30 border border-red-700 rounded-xl text-center space-y-3">
+          <p className="text-red-300 font-medium">Could not connect to the API</p>
+          <p className="text-red-400 text-sm">{authError}</p>
+          <button
+            onClick={refresh}
+            className="px-4 py-2 text-sm bg-red-800/50 hover:bg-red-800 text-red-200 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
