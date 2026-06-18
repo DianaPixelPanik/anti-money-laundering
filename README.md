@@ -1,10 +1,11 @@
-# AML Detector
+# Fintech Compliance Platform
 
-Suspicious Transaction Pattern Detector for Anti-Money Laundering compliance.
+AI-powered fintech compliance platform combining customer onboarding and transaction monitoring.
 
-Upload a CSV of transactions — get risk-scored anomalies with evidence summaries in seconds.
+This project integrates two complementary tools:
 
-**[Live Demo →](https://anti-money-laundering-red.vercel.app)**
+- **AML Transaction Monitoring** — Suspicious Transaction Pattern Detector. Upload a CSV of transactions — get risk-scored anomalies with evidence summaries in seconds. **[Live Demo →](https://anti-money-laundering-red.vercel.app)**
+- **KYC Onboarding Agent** — AI-powered Know Your Customer assistant with risk scoring, document verification, audit logs, and compliance workflows.
 
 ---
 
@@ -60,6 +61,8 @@ Full self-hosted stack (for production):
 
 ## Quick Start
 
+### AML Transaction Monitoring
+
 ```bash
 cp .env.example .env
 # Fill in ANTHROPIC_API_KEY and JWT_SECRET
@@ -71,6 +74,19 @@ pnpm dev
 ```
 
 Open **http://localhost:3000** and upload `scripts/sample.csv` to test.
+
+### KYC Onboarding Agent
+
+```bash
+cd apps/kyc-agent
+cp .env.example .env
+# Fill in ANTHROPIC_API_KEY
+
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Open **http://localhost:8501** to start the KYC onboarding interview.
 
 ---
 
@@ -157,9 +173,9 @@ pnpm test:coverage   # with lcov report
 ## Project Structure
 
 ```
-aml-detector/
+fintech-compliance-platform/
 ├── apps/
-│   ├── web/                  # Next.js frontend + API routes
+│   ├── web/                  # Next.js frontend + API routes (AML)
 │   │   └── src/
 │   │       ├── app/          # layout, page, API routes
 │   │       ├── components/   # Dashboard, UploadPanel, NetworkGraph
@@ -171,7 +187,12 @@ aml-detector/
 │   │   │   ├── lib/          # schemas.ts (Zod)
 │   │   │   └── routes/       # upload, analysis, alerts, sar, ralph
 │   │   └── tests/            # Vitest integration tests
-│   └── detector/             # Python FastAPI + IsolationForest
+│   ├── detector/             # Python FastAPI + IsolationForest
+│   └── kyc-agent/            # Streamlit KYC onboarding app
+│       ├── app.py            # Main KYC agent
+│       ├── requirements.txt   # Python dependencies
+│       ├── .streamlit/        # Streamlit config
+│       └── AGENTS.md          # Agent documentation
 ├── packages/
 │   ├── db/                   # Prisma schema
 │   └── types/                # Shared TypeScript types
