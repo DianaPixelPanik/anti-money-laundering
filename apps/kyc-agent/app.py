@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import re
+import fcntl
 from datetime import datetime, timezone, date
 from html import escape
 from typing import Optional
@@ -139,7 +140,11 @@ CSS = """
 
 def write_audit(entry: dict):
     with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def extract_pdf_text(uploaded_file) -> str:
@@ -185,9 +190,14 @@ def call_agent(api_messages: list, api_key: str) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        if m:
-            return json.loads(m.group())
+        for start in range(len(raw)):
+            if raw[start] == '{':
+                for end in range(len(raw), start, -1):
+                    if raw[end - 1] == '}':
+                        try:
+                            return json.loads(raw[start:end])
+                        except json.JSONDecodeError:
+                            continue
         return {"message": raw, "extracted": {}, "needs_document": None, "status": "ongoing"}
 
 
@@ -383,6 +393,9 @@ def handle_message(text: str, api_key: str):
 
 def handle_document(doc_type: str, uploaded, api_key: str):
     text = extract_pdf_text(uploaded)[:3000]
+    if not text or not text.strip():
+        st.warning(f"Could not extract text from {uploaded.name}. The document may be corrupted, scanned, or image-only. Please try a different file or enter the information manually.")
+        return
     note = f"{uploaded.name} uploaded ({len(text)} chars extracted)"
     st.session_state.history.append({"role": "document", "content": note})
 
@@ -435,7 +448,10 @@ def main():
                 api_key = ""
         if not api_key:
             raw = st.text_input("Anthropic API Key", type="password", placeholder="sk-ant-...")
-            api_key = raw.strip().encode("ascii", "ignore").decode("ascii")
+            api_key = raw.strip()
+            if api_key and not api_key.isascii():
+                st.error("API key contains invalid characters. Please check your key at console.anthropic.com")
+                st.stop()
         else:
             st.caption("API key loaded from environment.")
 
